@@ -1,57 +1,103 @@
 import React, {Component} from 'react'
 import L from 'leaflet';
 import SaveSystem from './Utils/SaveJsonSystem';
+import { Map, TileLayer, Marker, Polyline } from 'react-leaflet';
+import './css/home.css';
+import ixon from './images/pegman.png';
 
 class MapComponent extends Component   
 {
+    humanIcon = L.icon({
+        iconUrl: ixon,
+        iconSize: [18, 35]
+    });
+    
     state = { 
-        latlngs: []
+        userLocation: {  },
+        selectedCoordinates: [ ]
     }
-    SetConfig = () => {
-        let mymap = L.map('mymap').setView([38.573803, 68.787117], 13);
-        
-        const { latlngs } = this.state;
-        // Adding event listener when click on the map
-        mymap.addEventListener('click', (e) => 
-        { 
-            const { lat, lng } = e.latlng;
-            var marker = new L.Marker(e.latlng);
-            mymap.addLayer(marker);
 
-            //Adding it to array
-            latlngs.push([lat, lng]);
-            
-            //Drawing line between points
-            L.polyline(latlngs, { color: '#F62459' }).addTo(mymap);
-
-            this.setState(latlngs);
-        });
-
-
-        L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
-            attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
-            maxZoom: 18,
-            id: 'mapbox.streets',
-            accessToken: 'pk.eyJ1IjoibWlsYWQ0NDA1NTAiLCJhIjoiY2p4NGZvanVwMDk4dTN6bnc4M3phbGhqOCJ9.-FeoXV9ypxx2Kk0uTqaIyA'
-        }).addTo(mymap);
-    }
-    componentDidMount()
+    AddNewCoordinate = (e) => 
     {
-        this.SetConfig();
+        const newPos = [e.latlng.lat, e.latlng.lng];
+        this.setState(prevState => (
+        {
+            selectedCoordinates: prevState.selectedCoordinates.concat([newPos])
+        }));
+
+        // const { selectedCoordinates } = this.state;
+        // const { lat, lng } = e.latlng;
+        
+        // selectedCoordinates.push([lat, lng]);
+
+        // this.setState(selectedCoordinates);
     }
+
     SaveAsGeoJSON = () => 
     {
-        if(this.state.latlngs.length > 0)
-            SaveSystem(this.state.latlngs)
+        if(this.state.selectedCoordinates.length > 0)
+            SaveSystem(this.state.selectedCoordinates)
         else 
             alert("No points has been selected!")
     }
+    GetUserLocation = () => 
+    {
+        if (navigator.geolocation) 
+        {
+            navigator.geolocation.getCurrentPosition((position) => {
+                const { latitude, longitude } = position.coords;
+                this.setState({ userLocation: { lat: latitude, lng: longitude }, zoomLevel: 18 })
+            });
+        } 
+        else 
+        {
+            alert("Geolocation is not supported by this browser.");
+        }
+    }
     render() 
-    {   
+    {     
+        const { lat, lng } = this.state.userLocation;
+        const { selectedCoordinates } = this.state;
         return (
             <div>
-                <div id="mymap" style={{height:"95vh"}}></div>
-                <button onClick={this.SaveAsGeoJSON} type="button" class="btn btn-primary btn-lg btn-block">Save it as GeoJSON</button>
+                <Map id="map" className="map" onClick={this.AddNewCoordinate} zoom={lat ? 18 : 3} center={lat ? [lat, lng] : [ 30, 0 ]}>
+                    <TileLayer
+                        attribution='&amp;copy <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+                    { 
+                        lat &&
+                        <Marker icon={this.humanIcon} position={[ lat, lng ]}/>
+                    }
+                    
+                    {
+                        selectedCoordinates.length > 0 &&
+                        selectedCoordinates.map((position) => <Marker position={position}/>) 
+                    }
+                    {
+                        selectedCoordinates.length > 1 &&
+                        <Polyline color="red" positions={selectedCoordinates} />
+                    }
+                </Map>
+               
+                <span id="marker-span">
+                    <section id="btns-section">
+                        <button className='btn btn-info w-100' onClick={this.GetUserLocation}>  <i className="far fa-compass fa-lg monos"/> Find Me </button>
+                        <button className='btn find-me-btn w-100' onClick={this.SaveAsGeoJSON}> Download GeoJSON <i className="fas fa-file-download fa-lg"/> </button>
+                    </section>
+                    <section>
+                        { 
+                            selectedCoordinates.length > 0 ? (
+                                <React.Fragment>
+                                    <h4>Coordinates</h4>
+                                    { selectedCoordinates.map((coord) => <p>Longitude: {coord[0]}, Latitude: {coord[1]}</p> )}
+                                </React.Fragment>
+                            ) 
+                            :
+                            <h6>No Coordinates has been selected</h6>
+                        }
+                   </section>
+                </span>
             </div>
         )
     }
